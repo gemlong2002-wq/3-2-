@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>澄鴻南區 - 特休結算管理報表 (Enterprise API Edition)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { brand: { 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7' } },
+          fontFamily: { mono: ['ui-monospace', 'monospace'], }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
+    body { background-color: #020617; color: #f8fafc; font-family: 'ui-monospace', monospace; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    select option { background-color: #0f172a; color: #f8fafc; }
+
+    @keyframes cyberGlitch {
+      0% { text-shadow: 2px 0 0 #ef4444, -2px 0 0 #0ea5e9; }
+      50% { text-shadow: -2px 0 0 #ef4444, 2px 0 0 #0ea5e9; }
+      100% { text-shadow: 2px 0 0 #ef4444, -2px 0 0 #0ea5e9; }
+    }
+    .glitch-text { animation: cyberGlitch 1s infinite linear; }
+
+    @media print {
+      body { background-color: white !important; color: black !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .print-header { color: black !important; font-size: 24px !important; border-bottom: 2px solid #000 !important; padding-bottom: 10px !important; margin-bottom: 20px !important;}
+      .print-subtitle { color: #333 !important; font-size: 14px !important; background: none !important; border: none !important; }
+      table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; margin-bottom: 30px !important; }
+      th { background-color: #f1f5f9 !important; color: black !important; font-weight: bold !important; -webkit-print-color-adjust: exact; }
+      th, td { border: 1px solid #000 !important; padding: 8px !important; font-size: 14pt !important; color: black !important; }
+      .print-highlight { font-weight: bold !important; }
+      .print-shadow { box-shadow: none !important; border: none !important; background: none !important; }
+      .action-col { display: none !important; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body class="antialiased min-h-screen pb-12">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    class ErrorBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+      static getDerivedStateFromError(error) { return { hasError: true, error }; }
+      componentDidCatch(error, errorInfo) { console.error("系統崩潰詳細資訊:", error, errorInfo); }
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="flex items-center justify-center min-h-screen bg-slate-950 p-6">
+              <div className="bg-red-900/20 border-2 border-red-500 text-red-200 p-8 rounded-2xl max-w-2xl shadow-2xl">
+                <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><i data-lucide="alert-triangle"></i> System Crash / 系統發生異常</h1>
+                <div className="bg-black/50 p-4 rounded-lg font-mono text-sm text-red-400">{this.state.error.toString()}</div>
+              </div>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    const Icon = ({ name, className = "" }) => {
+      const el = useRef(null);
+      useEffect(() => {
+        if (el.current) { el.current.innerHTML = `<i data-lucide="${name}"></i>`; lucide.createIcons({ root: el.current }); }
+      }, [name]);
+      return <span ref={el} className={`inline-flex items-center justify-center ${className}`} />;
+    };
+
+    const dict = {
+      zh: {
+        title: "澄鴻南區｜特休結算管理報表",
+        basis: "結算基準：本年度 12/31 止",
+        rules: "南區管理規定",
+        unlocked: "編輯模式已解鎖",
+        locked: "純檢視模式",
+        sync: "數據同步",
+        exportPDF: "匯出 PDF",
+        addEmp: "新增同仁",
+        addRecord: "新增紀錄",
+        noData: "尚無資料或查無該年度紀錄",
+        carry: "延續",
+        bonus: "獎金",
+        orgTitle: "區部組織與活動資料庫",
+        history: "歷史總覽",
+        yearText: "年度",
+        aGroup: "A組 主管紀錄",
+        bGroup: "B組 主管紀錄",
+        banquet: "區部尾牙籌辦紀錄",
+        tech: "技術交流會紀錄",
+        actions: "操作",
+        no: "項次",
+        name: "姓名",
+        term: "任期區間 (一期三個月)",
+        eventLoc: "活動名稱 / 地點",
+        date: "舉辦日期",
+        yearQ: "年度與季度",
+        notes: "活動備註",
+        auth: "權限驗證",
+        authDesc: "請輸入管理密碼以執行此操作",
+        verify: "驗證中...",
+        confirmUnlock: "確認解鎖",
+        cancel: "取消",
+        confirmSave: "確認儲存",
+        iUnderstand: "我已了解",
+        error: "密碼錯誤，拒絕存取。",
+        sysLocked: "系統已重新鎖定，進入純檢視模式。",
+        delConfirm: "確定刪除？此動作無法復原。",
+        delConfirmManager: "確定刪除主管任期紀錄？",
+        delConfirmBanquet: "確定刪除尾牙紀錄？",
+        delConfirmTech: "確定刪除技術交流紀錄？",
+        fillRequired: "必填欄位不可為空！",
+        rule1Title: "勞動基準法 第 38 條 (特休給予標準)",
+        rule1Desc: "勞工在同一雇主或事業單位，繼續工作滿一定期間者，應依下列規定給予特別休假：",
+        rule2Title: "休假管控與調派",
+        rule2Desc: "同仁請特休時報備主管，由主管檢視剩餘天數並調派支援技師，",
+        rule2High: "該支援技師之加班費用由公司協助支出",
+        rule3Title: "無特休之調派扣款",
+        rule3Desc: "若無休假之同仁仍需請假，請主管協助調派後，需依規定",
+        rule3High: "貼補當日加班費用予支援技師",
+        rule4Title: "各區部尾牙籌辦預算",
+        rule4Desc: "往後各區部尾牙籌辦，預算為每位技師夥伴含稅 2,000 元。如有攜帶眷屬，僅限一位補助含稅 2,000 元。",
+        rule5Title: "技術交流會補助標準",
+        rule5Desc: "技術交流相關活動費用，預算為每人含稅 600 元。",
+        langBtn: "SWITCH TO EN",
+        quickDeduct: "扣假",
+        quickUndo: "復原",
+        quickReward: "代班",
+        usedLeave: "已休天數",
+        totalLeave: "年度總額",
+        finalLeave: "結算天數",
+        insufficientLeave: "警告：特休額度不足！",
+        restoreLimit: "無法復原：該員已休天數為 0",
+        govLeave: "勞基法特休標準",
+        managerBonus: "主管加給",
+        subReward: "代班特休",
+      },
+      en: {
+        title: "Chenghong South | Leave Settlement Report",
+        basis: "Base: Current Year Dec 31",
+        rules: "Region Regulations",
+        unlocked: "Edit Mode Unlocked",
+        locked: "Read-Only Mode",
+        sync: "Sync Data",
+        exportPDF: "Export PDF",
+        addEmp: "Add Employee",
+        addRecord: "Add Record",
+        noData: "No data found for this period",
+        carry: "Carry",
+        bonus: "Bonus",
+        orgTitle: "Regional Org & Event Database",
+        history: "History Overview",
+        yearText: "Year",
+        aGroup: "Group A Manager Records",
+        bGroup: "Group B Manager Records",
+        banquet: "Regional Banquet Records",
+        tech: "Tech Exchange Records",
+        actions: "Actions",
+        no: "No.",
+        name: "Name",
+        term: "Term (3 Months per period)",
+        eventLoc: "Event Name / Location",
+        date: "Date",
+        yearQ: "Year & Quarter",
+        notes: "Notes",
+        auth: "Authentication Required",
+        authDesc: "Please enter admin password to proceed",
+        verify: "Verifying...",
+        confirmUnlock: "Confirm Unlock",
+        cancel: "Cancel",
+        confirmSave: "Confirm Save",
+        iUnderstand: "I Understand",
+        error: "Incorrect password, access denied.",
+        sysLocked: "System locked, returning to read-only mode.",
+        delConfirm: "Are you sure you want to delete? This cannot be undone.",
+        delConfirmManager: "Are you sure you want to delete this manager record?",
+        delConfirmBanquet: "Are you sure you want to delete this banquet record?",
+        delConfirmTech: "Are you sure you want to delete this tech exchange record?",
+        fillRequired: "Required fields cannot be empty!",
+        rule1Title: "Labor Standards Act Art. 38 (Leave Standard)",
+        rule1Desc: "Workers who continue to work for the same employer or business entity for a certain period shall be granted annual paid leaves as follows:",
+        rule2Title: "Leave Control & Dispatch",
+        rule2Desc: "When requesting leave, report to the manager. The manager checks remaining days and dispatches backup technicians. ",
+        rule2High: "The company covers the overtime pay for backup technicians.",
+        rule3Title: "Deduction for Dispatch without Leave Balance",
+        rule3Desc: "If an employee without remaining leave needs to take time off, after manager dispatch, they must ",
+        rule3High: "subsidize the overtime pay to the backup technician.",
+        rule4Title: "Regional Banquet Budget",
+        rule4Desc: "Future regional banquet budget is 2,000 TWD (tax incl.) per technician. One family member allowed with a 2,000 TWD subsidy.",
+        rule5Title: "Tech Exchange Subsidy Standard",
+        rule5Desc: "Tech Exchange activity budget is 600 TWD (tax incl.) per person.",
+        langBtn: "切換為中文",
+        quickDeduct: "Deduct",
+        quickUndo: "Undo",
+        quickReward: "Reward",
+        usedLeave: "Used Leave",
+        totalLeave: "Total Quota",
+        finalLeave: "Final Settlement",
+        insufficientLeave: "Warning: Insufficient Balance!",
+        restoreLimit: "Limit reached: Used leave is 0",
+        govLeave: "LSA Standard Leave",
+        managerBonus: "Manager Bonus",
+        subReward: "Sub Reward",
+      }
+    };
+
+    // ⚡【核心戰術：API 解耦通訊引擎】
+    const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec"; 
+    
+    const executeGasApi = async (action, passcode, params = {}) => {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action, passcode, params })
+        });
+        const result = await response.json();
+        if (result.status === 'error') throw new Error(result.message);
+        return result;
+      } catch (err) {
+        console.error("API Call Failed:", err);
+        throw err;
+      }
+    };
+
+    const EventCard = ({ title, icon, textColor, headers, dataList, onOpenModal, onEdit, onDelete, displayStart = 0, t }) => (
+      <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-xl print-shadow">
+        <div className="bg-slate-800 px-6 py-4 border-b border-slate-700 flex justify-between items-center print:bg-transparent print:px-0">
+          <h3 className={`text-xl font-bold ${textColor} flex items-center gap-2 print:text-black print:text-lg`}>
+            <Icon name={icon} className="w-5 h-5 no-print" /> {t(title)}
+          </h3>
+          <button onClick={onOpenModal} className="text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1 rounded transition-colors flex items-center gap-1 no-print text-lg">
+            <Icon name="plus" className="w-4 h-4" /> {t('addRecord')}
+          </button>
+        </div>
+        <table className="min-w-full text-left text-slate-300">
+          <thead className="bg-slate-900/50 text-slate-400 text-sm print:bg-gray-100">
+            <tr>
+              {headers.map((h, i) => <th key={i} className="px-6 py-3 border-b border-slate-700 print:border-black print:text-black text-lg">{t(h)}</th>)}
+              <th className="px-4 py-3 border-b border-slate-700 action-col text-center text-lg">{t('actions')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 print:divide-black">
+            {dataList.length === 0 ? (
+              <tr><td colSpan={headers.length + 1} className="px-6 py-6 text-center text-slate-600 print:text-black text-lg">{t('noData')}</td></tr>
+            ) : (
+              dataList.map((row, idx) => (
+                <tr key={idx} className="hover:bg-slate-800/50 transition-colors">
+                  {row.slice(displayStart, displayStart + headers.length).map((cell, cIdx) => (
+                    <td key={cIdx} className={`px-6 py-4 print:text-black text-lg ${cIdx === 0 ? 'font-bold text-slate-200' : 'font-mono'}`}>{cell}</td>
+                  ))}
+                  <td className="px-4 py-4 text-center action-col whitespace-nowrap">
+                    <button onClick={() => onEdit(row.originalIndex, row)} className="text-slate-400 hover:text-brand-400 mx-2 transition-colors">
+                      <Icon name="edit" className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => onDelete(row.originalIndex, row[0])} className="text-slate-500 hover:text-red-400 mx-2 transition-colors">
+                      <Icon name="trash-2" className="w-5 h-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    const App = () => {
+      const [lang, setLang] = useState('zh');
+      const t = (key) => dict[lang][key] || key;
+
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [authPasscode, setAuthPasscode] = useState('');
+      const [showAuthModal, setShowAuthModal] = useState(false);
+      const [passwordInput, setPasswordInput] = useState('');
+      const [authError, setAuthError] = useState('');
+      const [isVerifying, setIsVerifying] = useState(false);
+      const [pendingAction, setPendingAction] = useState(null); 
+
+      const [leaveData, setLeaveData] = useState([]);
+      const [leaveHeaders, setLeaveHeaders] = useState([]);
+      const [managerData, setManagerData] = useState([]);
+      const [banquetData, setBanquetData] = useState([]);
+      const [techData, setTechData] = useState([]);
+      
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const containerRef = useRef(null);
+      const [isPdfMode, setIsPdfMode] = useState(false);
+      
+      const [isRuleModalOpen, setIsRuleModalOpen] = useState(false); 
+      const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+      const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
+      const [isBanquetModalOpen, setIsBanquetModalOpen] = useState(false);
+      const [isTechModalOpen, setIsTechModalOpen] = useState(false);
+      
+      const [editIndex, setEditIndex] = useState(null); 
+      const [leaveFormData, setLeaveFormData] = useState(['', '', '', '', '0', '0', '', '延續', '', '']);
+      const [managerFormData, setManagerFormData] = useState(['A組', '', '']);
+      const [banquetFormData, setBanquetFormData] = useState(['', '']);
+      const [techFormData, setTechFormData] = useState(['', '', '']);
+
+      const [availableYears, setAvailableYears] = useState([]);
+      const [selectedYear, setSelectedYear] = useState((new Date().getFullYear() - 1911).toString());
+
+      useEffect(() => { fetchData(); }, []);
+
+      useEffect(() => {
+        const yearsSet = new Set();
+        const extractRegex = /(1\d{2})/g; 
+        const scanData = (dataList) => {
+          dataList.forEach(row => { row.forEach(cell => { const matches = cell.toString().match(extractRegex); if (matches) matches.forEach(y => yearsSet.add(y)); }); });
+        };
+        scanData(managerData); scanData(banquetData); scanData(techData);
+        const sortedYears = Array.from(yearsSet).sort().reverse();
+        setAvailableYears(sortedYears);
+      }, [managerData, banquetData, techData]);
+
+      const requireAuth = (actionCallback) => {
+        if (isUnlocked) { actionCallback(authPasscode); } else {
+          setPendingAction(() => actionCallback); 
+          setPasswordInput(''); setAuthError(''); setShowAuthModal(true); 
+        }
+      };
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        if (!passwordInput) return;
+        setIsVerifying(true); setAuthError('');
+        
+        try {
+          const res = await executeGasApi('checkAuth', passwordInput);
+          setIsVerifying(false);
+          if (res.isValid) {
+            setIsUnlocked(true); setAuthPasscode(passwordInput); setShowAuthModal(false);
+            if (pendingAction) { pendingAction(passwordInput); setPendingAction(null); }
+          } else { 
+            setAuthError(t('error')); setPasswordInput(''); 
+          }
+        } catch (err) {
+          setIsVerifying(false); setAuthError("Error: " + err.message);
+        }
+      };
+
+      const handleLockSystem = () => { setIsUnlocked(false); setAuthPasscode(''); alert(t('sysLocked')); };
+
+      const fetchData = async () => {
+        setLoading(true); setError(null);
+        try {
+          const res = await executeGasApi('getDashboardData', '');
+          const mappedHeaders = ['name', 'date', 'govLeave', 'managerBonus', 'subReward', 'usedLeave', 'totalLeave', '獎金/延續', 'finalLeave', 'notes'];
+          setLeaveHeaders(mappedHeaders); 
+          setLeaveData(res.leaveData);
+          setManagerData(res.managerData); setBanquetData(res.banquetData); setTechData(res.techData);
+        } catch (err) {
+          setError("Error: " + err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleExportPDF = () => {
+        window.scrollTo(0, 0); setIsPdfMode(true);
+        setTimeout(() => {
+          const element = containerRef.current;
+          window.html2canvas(element, { scale: 2, useCORS: true, x: 0, y: 0, scrollX: 0, scrollY: 0 }).then(canvas => {
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('landscape', 'mm', 'a4'); 
+            const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasRatio = canvas.height / canvas.width; const pdfRatio = pdfHeight / pdfWidth;
+            let finalWidth, finalHeight;
+            if (canvasRatio > pdfRatio) { finalHeight = pdfHeight; finalWidth = pdfHeight / canvasRatio; } 
+            else { finalWidth = pdfWidth; finalHeight = pdfWidth * canvasRatio; }
+            const x = (pdfWidth - finalWidth) / 2; const y = (pdfHeight - finalHeight) / 2;
+            pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
+            pdf.save('Report_Export.pdf'); setIsPdfMode(false);
+          });
+        }, 800);
+      };
+
+      const handleQuickDeduct = async (rowIndex, currentPass) => {
+        const previousState = JSON.parse(JSON.stringify(leaveData));
+        const newData = [...leaveData];
+        let used = parseInt(newData[rowIndex][5], 10) || 0;    
+        let finalRem = parseInt(newData[rowIndex][8], 10) || 0; 
+        
+        if (finalRem <= 0) return alert(t('insufficientLeave'));
+
+        newData[rowIndex][5] = used + 1;
+        newData[rowIndex][8] = finalRem - 1; 
+        setLeaveData(newData);
+
+        try {
+          await executeGasApi('quickDeductLeave', currentPass, { dataIndex: rowIndex });
+        } catch(err) {
+          setLeaveData(previousState); alert("Sync failed. " + err.message);
+        }
+      };
+
+      const handleQuickUndo = async (rowIndex, currentPass) => {
+        const previousState = JSON.parse(JSON.stringify(leaveData));
+        const newData = [...leaveData];
+        let used = parseInt(newData[rowIndex][5], 10) || 0;    
+        let finalRem = parseInt(newData[rowIndex][8], 10) || 0; 
+        
+        if (used <= 0) return alert(t('restoreLimit'));
+
+        newData[rowIndex][5] = used - 1;
+        newData[rowIndex][8] = finalRem + 1; 
+        setLeaveData(newData);
+
+        try {
+          await executeGasApi('quickUndoLeave', currentPass, { dataIndex: rowIndex });
+        } catch(err) {
+          setLeaveData(previousState); alert("Sync failed. " + err.message);
+        }
+      };
+
+      const handleQuickReward = async (rowIndex, currentPass) => {
+        const previousState = JSON.parse(JSON.stringify(leaveData));
+        const newData = [...leaveData];
+        
+        newData[rowIndex][4] = (parseInt(newData[rowIndex][4], 10) || 0) + 1; 
+        newData[rowIndex][6] = (parseInt(newData[rowIndex][6], 10) || 0) + 1; 
+        newData[rowIndex][8] = (parseInt(newData[rowIndex][8], 10) || 0) + 1; 
+        setLeaveData(newData);
+
+        try {
+          await executeGasApi('quickRewardLeave', currentPass, { dataIndex: rowIndex });
+        } catch(err) {
+          setLeaveData(previousState); alert("Sync failed. " + err.message);
+        }
+      };
+
+      const handleToggle = async (rowIndex, currentPass) => {
+        const newStatus = leaveData[rowIndex][7] === '獎金' ? '延續' : '獎金'; 
+        const newData = [...leaveData]; newData[rowIndex][7] = newStatus;
+        setLeaveData(newData);
+        try {
+          await executeGasApi('toggleBonusOption', currentPass, { dataIndex: rowIndex, statusStr: newStatus });
+        } catch(e) {}
+      };
+
+      const handleOpenLeaveModal = (index = null, rowData = null) => {
+        setEditIndex(index); 
+        setLeaveFormData(rowData ? [...rowData] : ['', '', '', '', '0', '0', '', '延續', '', '']); 
+        setIsLeaveModalOpen(true);
+      };
+
+      const handleSaveLeave = async () => {
+        if (!leaveFormData[0] || !leaveFormData[1]) return alert(t('fillRequired'));
+        let submitData = [...leaveFormData]; 
+        if (!submitData[7]) submitData[7] = '延續'; 
+        setIsLeaveModalOpen(false);
+        try {
+          await executeGasApi('saveEmployee', authPasscode, { dataIndex: editIndex, rowData: submitData });
+          fetchData();
+        } catch(e) { alert(e.message); }
+      };
+
+      const handleDeleteLeave = async (index, currentPass) => {
+        if(confirm(t('delConfirm'))) { 
+          try {
+            await executeGasApi('deleteEmployee', currentPass, { dataIndex: index });
+            fetchData();
+          } catch(e) { alert(e.message); }
+        }
+      };
+
+      const handleOpenManagerModal = (group, index = null, rowData = null) => { 
+        setEditIndex(index); setManagerFormData(rowData ? [...rowData].slice(0, 3) : [group, '', '']); setIsManagerModalOpen(true); 
+      };
+      const handleSaveManager = async () => {
+        if (!managerFormData[1] || !managerFormData[2]) return alert(t('fillRequired'));
+        setIsManagerModalOpen(false);
+        try {
+          await executeGasApi('saveManagerRecord', authPasscode, { dataIndex: editIndex, rowData: managerFormData });
+          fetchData();
+        } catch(e) { alert(e.message); }
+      };
+      const handleDeleteManager = async (index, currentPass) => {
+        if(confirm(t('delConfirmManager'))) { 
+          try {
+            await executeGasApi('deleteManagerRecord', currentPass, { dataIndex: index });
+            fetchData();
+          } catch(e) { alert(e.message); }
+        }
+      };
+
+      const handleOpenBanquetModal = (index = null, rowData = null) => {
+        setEditIndex(index); setBanquetFormData(rowData ? [...rowData].slice(0, 2) : ['', '']); setIsBanquetModalOpen(true);
+      };
+      const handleSaveBanquet = async () => {
+        if (!banquetFormData[0] || !banquetFormData[1]) return alert(t('fillRequired'));
+        setIsBanquetModalOpen(false);
+        try {
+          await executeGasApi('saveBanquetRecord', authPasscode, { dataIndex: editIndex, rowData: banquetFormData });
+          fetchData();
+        } catch(e) { alert(e.message); }
+      };
+      const handleDeleteBanquet = async (index, currentPass) => {
+        if(confirm(t('delConfirmBanquet'))) { 
+          try {
+            await executeGasApi('deleteBanquetRecord', currentPass, { dataIndex: index });
+            fetchData();
+          } catch(e) { alert(e.message); }
+        }
+      };
+
+      const handleOpenTechModal = (index = null, rowData = null) => {
+        setEditIndex(index); setTechFormData(rowData ? [...rowData].slice(0, 3) : ['', '', '']); setIsTechModalOpen(true);
+      };
+      const handleSaveTech = async () => {
+        if (!techFormData[0] || !techFormData[1]) return alert(t('fillRequired'));
+        setIsTechModalOpen(false);
+        try {
+          await executeGasApi('saveTechRecord', authPasscode, { dataIndex: editIndex, rowData: techFormData });
+          fetchData();
+        } catch(e) { alert(e.message); }
+      };
+      const handleDeleteTech = async (index, currentPass) => {
+        if(confirm(t('delConfirmTech'))) { 
+          try {
+            await executeGasApi('deleteTechRecord', currentPass, { dataIndex: index });
+            fetchData();
+          } catch(e) { alert(e.message); }
+        }
+      };
+
+      const mapOriginalIndex = (arr) => arr.map((row, index) => { const newRow = [...row]; newRow.originalIndex = index; return newRow; });
+      const filterByTemporal = (dataList) => {
+        if (selectedYear === 'ALL') return dataList;
+        return dataList.filter(row => row.some(cell => cell.toString().includes(selectedYear)));
+      };
+
+      const aGroupManagers = filterByTemporal(mapOriginalIndex(managerData).filter(m => m[0] === 'A組'));
+      const bGroupManagers = filterByTemporal(mapOriginalIndex(managerData).filter(m => m[0] === 'B組'));
+      const mappedBanquet = filterByTemporal(mapOriginalIndex(banquetData));
+      const mappedTech = filterByTemporal(mapOriginalIndex(techData));
+
+      return (
+        <div className={`p-6 max-w-[95%] mx-auto relative print:max-w-full print:p-0 ${isPdfMode ? 'pdf-mode max-w-none w-[1500px] bg-slate-950 text-white' : ''}`} ref={containerRef}>
+          
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-700 print-header">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3 print:text-black">
+                <Icon name="shield-check" className="w-8 h-8 text-brand-400 no-print" />
+                {t('title')}
+              </h1>
+              <div className="flex gap-3 mt-3 print:mt-1">
+                <p className="text-brand-400 text-lg font-bold bg-brand-900/30 inline-flex items-center gap-2 px-3 py-1 rounded border border-brand-500/30 print-subtitle">
+                  {t('basis')}
+                </p>
+                <button onClick={() => setIsRuleModalOpen(true)} className="text-amber-400 text-lg font-bold bg-amber-900/30 hover:bg-amber-900/50 transition-colors inline-flex items-center gap-2 px-3 py-1 rounded border border-amber-500/30 cursor-pointer no-print">
+                  <Icon name="book-open" className="w-4 h-4" /> {t('rules')}
+                </button>
+                <p className="text-emerald-400 text-lg font-bold bg-emerald-900/30 inline-flex items-center gap-2 px-3 py-1 rounded border border-emerald-500/30 print-subtitle no-print">
+                  <Icon name="server" className="w-4 h-4" /> HEADLESS API DECOUPLED
+                </p>
+                {isUnlocked ? (
+                  <button onClick={handleLockSystem} className="text-red-400 text-lg font-bold bg-red-900/30 hover:bg-red-900/50 transition-colors inline-flex items-center gap-2 px-3 py-1 rounded border border-red-500/30 cursor-pointer no-print shadow-[2px_2px_0px_0px_rgba(239,68,68,0.4)] hover:translate-y-px hover:shadow-none">
+                    <Icon name="unlock" className="w-4 h-4" /> {t('unlocked')}
+                  </button>
+                ) : (
+                  <button onClick={() => { setPendingAction(null); setPasswordInput(''); setAuthError(''); setShowAuthModal(true); }} className="text-slate-400 text-lg font-bold bg-slate-800/80 hover:bg-slate-700 transition-colors inline-flex items-center gap-2 px-3 py-1 rounded border border-slate-600 no-print cursor-pointer shadow-[2px_2px_0px_0px_rgba(71,85,105,1)] hover:translate-y-px hover:shadow-none">
+                    <Icon name="lock" className="w-4 h-4" /> {t('locked')}
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-4 no-print">
+              <button onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')} className="px-5 py-3 text-lg bg-slate-900 hover:bg-slate-800 text-yellow-400 font-bold rounded-lg flex items-center gap-2 border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-transform hover:scale-105">
+                <Icon name="globe" className="w-5 h-5" /> {t('langBtn')}
+              </button>
+              
+              <button onClick={fetchData} disabled={loading} className="px-5 py-3 text-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold rounded-lg flex items-center gap-2 border border-slate-600 shadow-lg transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100">
+                <Icon name="refresh-cw" className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /> {t('sync')}
+              </button>
+              <button onClick={handleExportPDF} className="px-5 py-3 text-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg flex items-center gap-2 border border-slate-600 shadow-lg transition-transform hover:scale-105">
+                <Icon name="printer" className="w-5 h-5" /> {t('exportPDF')}
+              </button>
+              <button onClick={() => requireAuth(() => handleOpenLeaveModal())} className="px-5 py-3 text-lg bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg flex items-center gap-2 border border-brand-500 shadow-lg transition-transform hover:scale-105">
+                <Icon name="user-plus" className="w-5 h-5" /> {t('addEmp')}
+              </button>
+            </div>
+          </div>
+
+          {error && <div className="bg-red-900/20 text-red-400 p-4 mb-6 rounded-lg border border-red-500/50 no-print text-lg">{error}</div>}
+
+          <div className="bg-slate-900 rounded-xl overflow-hidden shadow-2xl mb-12 print-shadow">
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse border-2 border-slate-700 text-lg">
+                <thead className="bg-slate-800">
+                  <tr>
+                    <th className="px-4 py-4 border-2 border-slate-600 text-center text-slate-400 w-16">{t('no')}</th>
+                    {leaveHeaders.map((h, i) => <th key={i} className="px-5 py-4 border-2 border-slate-600 text-center font-bold text-slate-200 whitespace-nowrap">{t(h)}</th>)}
+                    <th className="px-6 py-4 border-2 border-slate-600 text-center font-bold text-slate-200 action-col">{t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-slate-900">
+                  {loading ? (
+                    <tr><td colSpan="12" className="p-12 text-center text-brand-500"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto no-print" /></td></tr>
+                  ) : leaveData.map((row, rowIndex) => {
+                    const used = parseInt(row[5], 10) || 0;
+                    const total = parseInt(row[6], 10) || 1; 
+                    const finalRem = parseInt(row[8], 10) || 0; 
+                    
+                    const percent = Math.max(0, Math.min(100, (finalRem / total) * 100));
+                    
+                    const redThreshold = total / 3;
+                    let barColor = "bg-emerald-500 shadow-[0_0_10px_#10b981]";
+                    if (finalRem < redThreshold) barColor = "bg-red-500 shadow-[0_0_10px_#ef4444]";
+                    else if (finalRem <= total * 0.6) barColor = "bg-amber-500 shadow-[0_0_10px_#f59e0b]";
+
+                    return (
+                      <tr key={rowIndex} className="hover:bg-slate-800 transition-colors">
+                        <td className="px-4 py-4 text-center border border-slate-700 text-slate-500 font-bold print:text-black">{rowIndex + 1}</td>
+                        
+                        <td className="px-5 py-4 whitespace-nowrap border border-slate-700 text-slate-300 font-bold">{row[0] || '-'}</td>
+                        <td className="px-5 py-4 whitespace-nowrap border border-slate-700 text-slate-300 font-mono">{row[1] || '-'}</td>
+                        <td className="px-5 py-4 text-center border border-slate-700 text-slate-400">{row[2] || '0'}</td>
+                        <td className="px-5 py-4 text-center border border-slate-700 text-amber-400 font-bold">{row[3] || '0'}</td>
+                        <td className="px-5 py-4 text-center border border-slate-700 text-emerald-400 font-bold">{row[4] || '0'}</td>
+
+                        <td className="px-5 py-4 border border-slate-700 text-center text-slate-400 font-bold">{used}</td>
+                        <td className="px-5 py-4 border border-slate-700 text-center text-slate-300 font-bold text-xl">{total}</td>
+
+                        <td className="px-5 py-4 border border-slate-700 text-center print-highlight">
+                          <div className="flex items-center gap-2 justify-center no-print">
+                            <span className={`text-sm ${row[7] !== '獎金' ? 'text-brand-400 font-bold' : 'text-slate-500'}`}>{t('carry')}</span>
+                            <button onClick={() => requireAuth((pass) => handleToggle(rowIndex, pass))} className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${row[7] === '獎金' ? 'bg-amber-500' : 'bg-brand-600'}`}>
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${row[7] === '獎金' ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
+                            <span className={`text-sm ${row[7] === '獎金' ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>{t('bonus')}</span>
+                          </div>
+                          <span className="hidden print:inline-block print:text-black">{row[7] === '獎金' ? t('bonus') : t('carry')}</span>
+                        </td>
+
+                        <td className="px-5 py-4 border border-slate-700 min-w-[180px] bg-slate-800/40">
+                          <div className="flex items-center gap-3 justify-between no-print">
+                            <span className={`text-2xl font-black tracking-widest ${finalRem < redThreshold ? 'text-red-400 glitch-text' : 'text-brand-400'}`}>
+                              {finalRem}
+                            </span>
+                            <div className="w-16 lg:w-24 bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+                              <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${percent}%` }}></div>
+                            </div>
+                          </div>
+                          <span className="hidden print:inline-block print:text-black print:font-bold">{finalRem}</span>
+                        </td>
+
+                        <td className="px-5 py-4 border border-slate-700 text-slate-300">{row[9] || '-'}</td>
+
+                        <td className="px-5 py-4 border border-slate-700 text-center whitespace-nowrap action-col">
+                          <div className="flex justify-center items-center gap-1">
+                            <button onClick={() => requireAuth((pass) => handleQuickReward(rowIndex, pass))} title="增加該員代班特休" className="px-2 py-1 bg-emerald-950/50 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-400 rounded-md font-bold text-sm transition-colors group flex items-center gap-1 shadow-md">
+                              <Icon name="arrow-up-circle" className="w-4 h-4 group-hover:-translate-y-1 transition-transform" /> {t('quickReward')}
+                            </button>
+                            <button onClick={() => requireAuth((pass) => handleQuickUndo(rowIndex, pass))} title="退回誤扣的休假" className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-md font-bold text-sm transition-colors group flex items-center gap-1 shadow-md">
+                              <Icon name="rotate-ccw" className="w-4 h-4 group-hover:-rotate-45 transition-transform" /> {t('quickUndo')}
+                            </button>
+                            <button onClick={() => requireAuth((pass) => handleQuickDeduct(rowIndex, pass))} title="消耗一天特休" className="px-2 py-1 bg-red-950/50 hover:bg-red-900 border border-red-700/60 text-red-400 rounded-md font-bold text-sm transition-colors group flex items-center gap-1 shadow-md">
+                              <Icon name="minus-circle" className="w-4 h-4 group-hover:scale-110 transition-transform" /> {t('quickDeduct')}
+                            </button>
+                            
+                            <div className="w-px h-6 bg-slate-700 mx-1"></div>
+                            
+                            <button onClick={() => requireAuth(() => handleOpenLeaveModal(rowIndex, row))} className="text-slate-400 hover:text-brand-400 mx-1"><Icon name="edit" className="w-6 h-6" /></button>
+                            <button onClick={() => requireAuth((pass) => handleDeleteLeave(rowIndex, pass))} className="text-slate-400 hover:text-red-400 mx-1"><Icon name="trash-2" className="w-6 h-6" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="mt-12">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3 print:text-black print:text-xl">
+                <Icon name="database" className="w-7 h-7 text-emerald-400 no-print" /> {t('orgTitle')}
+              </h2>
+              
+              <div className="flex flex-wrap items-center gap-2 bg-slate-900 p-1.5 rounded-lg border border-slate-700 shadow-inner no-print">
+                <button 
+                  onClick={() => setSelectedYear('ALL')} 
+                  className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === 'ALL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+                >
+                  <Icon name="history" className="w-4 h-4 mr-2 inline" />{t('history')}
+                </button>
+                <div className="w-px h-6 bg-slate-700 mx-1"></div>
+                {availableYears.map(year => (
+                  <button 
+                    key={year} 
+                    onClick={() => setSelectedYear(year)} 
+                    className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === year ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+                  >
+                    {year} {t('yearText')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loading ? (
+               <div className="p-12 text-center text-emerald-500 no-print"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto" /></div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
+                <EventCard t={t} title="aGroup" icon="users" textColor="text-brand-400" headers={['name', 'term']} dataList={aGroupManagers} displayStart={1} onOpenModal={() => requireAuth(() => handleOpenManagerModal('A組'))} onEdit={(idx, row) => requireAuth(() => handleOpenManagerModal('A組', idx, row))} onDelete={(idx, name) => requireAuth((pass) => handleDeleteManager(idx, pass))} />
+                <EventCard t={t} title="bGroup" icon="users" textColor="text-amber-400" headers={['name', 'term']} dataList={bGroupManagers} displayStart={1} onOpenModal={() => requireAuth(() => handleOpenManagerModal('B組'))} onEdit={(idx, row) => requireAuth(() => handleOpenManagerModal('B組', idx, row))} onDelete={(idx, name) => requireAuth((pass) => handleDeleteManager(idx, pass))} />
+                <EventCard t={t} title="banquet" icon="glass-water" textColor="text-purple-400" headers={['eventLoc', 'date']} dataList={mappedBanquet} onOpenModal={() => requireAuth(() => handleOpenBanquetModal())} onEdit={(idx, row) => requireAuth(() => handleOpenBanquetModal(idx, row))} onDelete={(idx, name) => requireAuth((pass) => handleDeleteBanquet(idx, pass))} />
+                <EventCard t={t} title="tech" icon="cpu" textColor="text-emerald-400" headers={['yearQ', 'date', 'notes']} dataList={mappedTech} onOpenModal={() => requireAuth(() => handleOpenTechModal())} onEdit={(idx, row) => requireAuth(() => handleOpenTechModal(idx, row))} onDelete={(idx, name) => requireAuth((pass) => handleDeleteTech(idx, pass))} />
+              </div>
+            )}
+          </div>
+
+          <div className="mt-12 pt-6 border-t border-slate-800 text-center no-print pb-8">
+            <div className="inline-block bg-slate-900 border-2 border-slate-700 px-6 py-3 shadow-[4px_4px_0px_0px_rgba(71,85,105,1)] tracking-widest text-slate-400 font-mono text-lg uppercase transition-transform hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(56,189,248,0.5)]">
+              System Architect <span className="text-brand-400 font-bold ml-2">AUTHORIZED BY CHANGSHENG LIU</span>
+            </div>
+          </div>
+
+          <div className="no-print">
+            {showAuthModal && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+                <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center relative overflow-hidden transform transition-all">
+                  <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300"><Icon name="x" className="w-5 h-5" /></button>
+                  <Icon name="lock" className="w-12 h-12 text-brand-500 mx-auto mb-4" />
+                  <h2 className="text-xl font-bold text-slate-100 mb-2">{t('auth')}</h2>
+                  <p className="text-slate-400 text-lg mb-6">{t('authDesc')}</p>
+                  
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <input type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="••••••••" disabled={isVerifying} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-center text-slate-200 tracking-[0.3em] focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50 text-xl" autoFocus />
+                    {authError && <p className="text-red-400 text-lg animate-pulse">{authError}</p>}
+                    <button type="submit" disabled={isVerifying} className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-lg">
+                      {isVerifying ? <Icon name="loader-2" className="w-5 h-5 animate-spin" /> : <Icon name="unlock" className="w-5 h-5" />} 
+                      {isVerifying ? t('verify') : t('confirmUnlock')}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {isUnlocked && isManagerModalOpen && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-slate-800">
+                    <h2 className="text-2xl font-bold text-amber-400 flex items-center gap-2"><Icon name={editIndex === null ? "crown" : "edit"} className="w-6 h-6" /> {editIndex === null ? t('addRecord') : 'Edit'} ({managerFormData[0]})</h2>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('name')}</label>
+                      <select value={managerFormData[1]} onChange={e => setManagerFormData(prev => [prev[0], e.target.value, prev[2]])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-amber-500 focus:outline-none cursor-pointer text-lg">
+                        <option value="" disabled>Select / 選擇...</option>
+                        {leaveData.map((row, idx) => <option key={idx} value={row[0]}>{row[0]}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('term')}</label>
+                      <input type="text" value={managerFormData[2]} onChange={e => setManagerFormData(prev => [prev[0], prev[1], e.target.value])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-amber-500 focus:outline-none text-lg" />
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-800 flex justify-end gap-4 bg-slate-900/50">
+                    <button onClick={() => setIsManagerModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-lg">{t('cancel')}</button>
+                    <button onClick={handleSaveManager} className="px-6 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold flex items-center gap-2 text-lg">{t('confirmSave')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isUnlocked && isBanquetModalOpen && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-slate-800">
+                    <h2 className="text-2xl font-bold text-purple-400 flex items-center gap-2"><Icon name={editIndex === null ? "glass-water" : "edit"} className="w-6 h-6" /> {t('banquet')}</h2>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('eventLoc')}</label>
+                      <input type="text" value={banquetFormData[0]} onChange={e => setBanquetFormData(prev => [e.target.value, prev[1]])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-purple-500 focus:outline-none text-lg" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('date')}</label>
+                      <input type="text" value={banquetFormData[1]} onChange={e => setBanquetFormData(prev => [prev[0], e.target.value])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-purple-500 focus:outline-none text-lg" />
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-800 flex justify-end gap-4 bg-slate-900/50">
+                    <button onClick={() => setIsBanquetModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-lg">{t('cancel')}</button>
+                    <button onClick={handleSaveBanquet} className="px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-2 text-lg">{t('confirmSave')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isUnlocked && isTechModalOpen && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-slate-800">
+                    <h2 className="text-2xl font-bold text-emerald-400 flex items-center gap-2"><Icon name={editIndex === null ? "cpu" : "edit"} className="w-6 h-6" /> {t('tech')}</h2>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('yearQ')}</label>
+                      <input type="text" value={techFormData[0]} onChange={e => setTechFormData(prev => [e.target.value, prev[1], prev[2]])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-emerald-500 focus:outline-none text-lg" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('date')}</label>
+                      <input type="text" value={techFormData[1]} onChange={e => setTechFormData(prev => [prev[0], e.target.value, prev[2]])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-emerald-500 focus:outline-none text-lg" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-slate-400 text-lg font-bold">{t('notes')}</label>
+                      <input type="text" value={techFormData[2]} onChange={e => setTechFormData(prev => [prev[0], prev[1], e.target.value])} className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:border-emerald-500 focus:outline-none text-lg" />
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-800 flex justify-end gap-4 bg-slate-900/50">
+                    <button onClick={() => setIsTechModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-lg">{t('cancel')}</button>
+                    <button onClick={handleSaveTech} className="px-6 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-2 text-lg">{t('confirmSave')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isUnlocked && isLeaveModalOpen && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col">
+                  <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                      <Icon name={editIndex === null ? "user-plus" : "edit"} className="w-6 h-6 text-brand-400" />
+                      {editIndex === null ? t('addEmp') : 'Edit Employee'}
+                    </h2>
+                  </div>
+                  <div className="p-6 grid grid-cols-2 gap-6">
+                    {leaveHeaders.map((header, index) => {
+                      if (index === 2 || index === 3 || index === 6 || index === 7 || index === 8) return null; 
+                      return (
+                        <div key={index} className="flex flex-col gap-2 col-span-2">
+                          <label className="text-slate-400 text-lg font-bold">{t(header)}</label>
+                          <input type={(index === 4 || index === 5) ? "number" : "text"} value={leaveFormData[index] || ''} 
+                            onChange={(e) => { const newData = [...leaveFormData]; newData[index] = e.target.value; setLeaveFormData(newData); }} 
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-brand-500 text-lg" 
+                            placeholder={index === 1 ? "例：0112/04/01" : ""}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="p-6 border-t border-slate-800 flex justify-end gap-4 bg-slate-900/50">
+                    <button onClick={() => setIsLeaveModalOpen(false)} className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 text-lg">{t('cancel')}</button>
+                    <button onClick={handleSaveLeave} className="px-6 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-bold flex items-center gap-2 text-lg">{t('confirmSave')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isRuleModalOpen && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setIsRuleModalOpen(false)}>
+                <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                  <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/50 rounded-t-xl shrink-0">
+                    <h2 className="text-2xl font-bold text-amber-400 flex items-center gap-3">
+                      <Icon name="book-open" className="w-7 h-7" /> {t('rules')}
+                    </h2>
+                    <button onClick={() => setIsRuleModalOpen(false)} className="text-slate-400 hover:text-white transition-colors"><Icon name="x" className="w-6 h-6" /></button>
+                  </div>
+                  
+                  <div className="p-8 space-y-6 text-lg text-slate-300 leading-relaxed overflow-y-auto">
+                    <div className="flex items-start gap-4 bg-brand-900/10 p-5 rounded-lg border border-brand-900/30">
+                      <Icon name="file-text" className="w-6 h-6 text-brand-400 mt-1 shrink-0" />
+                      <div>
+                        <h4 className="text-slate-100 font-bold mb-3 text-xl border-b border-brand-900/50 pb-2">{t('rule1Title')}</h4>
+                        <p className="text-slate-300 mb-3 text-lg">{t('rule1Desc')}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
+                      <Icon name="check-circle" className="w-6 h-6 text-emerald-400 mt-1 shrink-0" />
+                      <div>
+                        <h4 className="text-slate-100 font-bold mb-1 text-lg">{t('rule2Title')}</h4>
+                        <p className="text-lg">{t('rule2Desc')}<strong className="text-emerald-400">{t('rule2High')}</strong>。</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 bg-red-900/10 p-4 rounded-lg border border-red-900/30">
+                      <Icon name="alert-triangle" className="w-6 h-6 text-red-400 mt-1 shrink-0" />
+                      <div>
+                        <h4 className="text-slate-100 font-bold mb-1 text-lg">{t('rule3Title')}</h4>
+                        <p className="text-lg">{t('rule3Desc')}<strong className="text-red-400 border-b border-red-400/50 pb-0.5">{t('rule3High')}</strong>。</p>
+                      </div>
+                    </div>
+
+                    {isUnlocked && (
+                      <>
+                        <div className="flex items-start gap-4 bg-purple-900/10 p-4 rounded-lg border border-purple-900/30">
+                          <Icon name="gift" className="w-6 h-6 text-purple-400 mt-1 shrink-0" />
+                          <div>
+                            <h4 className="text-slate-100 font-bold mb-1 text-lg">{t('rule4Title')}</h4>
+                            <p className="text-lg">{t('rule4Desc')}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-4 bg-cyan-900/10 p-4 rounded-lg border border-cyan-900/30">
+                          <Icon name="coffee" className="w-6 h-6 text-cyan-400 mt-1 shrink-0" />
+                          <div>
+                            <h4 className="text-slate-100 font-bold mb-1 text-lg">{t('rule5Title')}</h4>
+                            <p className="text-lg">{t('rule5Desc')}</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 border-t border-slate-800 flex justify-center bg-slate-900/50 shrink-0">
+                    <button onClick={() => setIsRuleModalOpen(false)} className="px-8 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold transition-colors text-lg shadow-lg">{t('iUnderstand')}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ErrorBoundary><App /></ErrorBoundary>);
+  </script>
+</body>
+</html>
