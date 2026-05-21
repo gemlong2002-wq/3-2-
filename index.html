@@ -231,6 +231,14 @@
   headers: { "Content-Type": "text/plain;charset=utf-8" },
   body: JSON.stringify({ action, passcode, params })
 });
+        const executeGasApi = async (action, passcode, params = {}) => {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { "Content-Type": "text/plain;charset=utf-8" }, // 🟢 偽裝成純文字繞過預檢
+          body: JSON.stringify({ action, passcode, params }),
+          redirect: "follow" // 🟢 GAS 專屬機制，自動追蹤重新導向
+        });
         const result = await response.json();
         if (result.status === 'error') throw new Error(result.message);
         return result;
