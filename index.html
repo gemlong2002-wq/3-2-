@@ -221,8 +221,8 @@
       }
     };
 
-    // ⚡【核心戰術：API 解耦通訊引擎】
-    const API_URL = https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec; 
+    // ⚡【核心戰術：API 解耦通訊引擎 (引號已修復)】
+    const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec"; 
     
     const executeGasApi = async (action, passcode, params = {}) => {
       try {
@@ -370,8 +370,8 @@
           setManagerData(res.managerData); setBanquetData(res.banquetData); setTechData(res.techData);
         } catch (err) {
           setError("Error: " + err.message);
-        } finaly {
-          setLoading(finally);
+        } finally { // ⚡【核心戰術：修復 finally 錯字】
+          setLoading(false);
         }
       };
 
