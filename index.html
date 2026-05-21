@@ -221,33 +221,16 @@
       }
     };
 
-    // ⚡【核心戰術：API 解耦通訊引擎 (引號已修復)】
-    // ⚡ 這是最簡單的 API 連結方式
-const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec";
+    // ✅ 唯一正確版本的 API 函式（已移除重複定義）
+    const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec";
 
-const executeGasApi = async (action, passcode, params = {}) => {
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, passcode, params }),
-      redirect: "follow"
-    });
-    const result = await response.json();
-    if (result.status === 'error') throw new Error(result.message);
-    return result;
-  } catch (err) {
-    console.error("API Call Failed:", err);
-    throw err;
-  }
-};
-        const executeGasApi = async (action, passcode, params = {}) => {
+    const executeGasApi = async (action, passcode, params = {}) => {
       try {
         const response = await fetch(API_URL, {
           method: 'POST',
-          headers: { "Content-Type": "text/plain;charset=utf-8" }, // 🟢 偽裝成純文字繞過預檢
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({ action, passcode, params }),
-          redirect: "follow" // 🟢 GAS 專屬機制，自動追蹤重新導向
+          redirect: "follow"
         });
         const result = await response.json();
         if (result.status === 'error') throw new Error(result.message);
@@ -310,7 +293,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
       const [passwordInput, setPasswordInput] = useState('');
       const [authError, setAuthError] = useState('');
       const [isVerifying, setIsVerifying] = useState(false);
-      const [pendingAction, setPendingAction] = useState(null); 
+      const [pendingAction, setPendingAction] = useState(null);
 
       const [leaveData, setLeaveData] = useState([]);
       const [leaveHeaders, setLeaveHeaders] = useState([]);
@@ -323,13 +306,13 @@ const executeGasApi = async (action, passcode, params = {}) => {
       const containerRef = useRef(null);
       const [isPdfMode, setIsPdfMode] = useState(false);
       
-      const [isRuleModalOpen, setIsRuleModalOpen] = useState(false); 
+      const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
       const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
       const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
       const [isBanquetModalOpen, setIsBanquetModalOpen] = useState(false);
       const [isTechModalOpen, setIsTechModalOpen] = useState(false);
       
-      const [editIndex, setEditIndex] = useState(null); 
+      const [editIndex, setEditIndex] = useState(null);
       const [leaveFormData, setLeaveFormData] = useState(['', '', '', '', '0', '0', '', '延續', '', '']);
       const [managerFormData, setManagerFormData] = useState(['A組', '', '']);
       const [banquetFormData, setBanquetFormData] = useState(['', '']);
@@ -342,7 +325,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
 
       useEffect(() => {
         const yearsSet = new Set();
-        const extractRegex = /(1\d{2})/g; 
+        const extractRegex = /(1\d{2})/g;
         const scanData = (dataList) => {
           dataList.forEach(row => { row.forEach(cell => { const matches = cell.toString().match(extractRegex); if (matches) matches.forEach(y => yearsSet.add(y)); }); });
         };
@@ -353,8 +336,8 @@ const executeGasApi = async (action, passcode, params = {}) => {
 
       const requireAuth = (actionCallback) => {
         if (isUnlocked) { actionCallback(authPasscode); } else {
-          setPendingAction(() => actionCallback); 
-          setPasswordInput(''); setAuthError(''); setShowAuthModal(true); 
+          setPendingAction(() => actionCallback);
+          setPasswordInput(''); setAuthError(''); setShowAuthModal(true);
         }
       };
 
@@ -362,15 +345,14 @@ const executeGasApi = async (action, passcode, params = {}) => {
         e.preventDefault();
         if (!passwordInput) return;
         setIsVerifying(true); setAuthError('');
-        
         try {
           const res = await executeGasApi('checkAuth', passwordInput);
           setIsVerifying(false);
           if (res.isValid) {
             setIsUnlocked(true); setAuthPasscode(passwordInput); setShowAuthModal(false);
             if (pendingAction) { pendingAction(passwordInput); setPendingAction(null); }
-          } else { 
-            setAuthError(t('error')); setPasswordInput(''); 
+          } else {
+            setAuthError(t('error')); setPasswordInput('');
           }
         } catch (err) {
           setIsVerifying(false); setAuthError("Error: " + err.message);
@@ -384,12 +366,12 @@ const executeGasApi = async (action, passcode, params = {}) => {
         try {
           const res = await executeGasApi('getDashboardData', '');
           const mappedHeaders = ['name', 'date', 'govLeave', 'managerBonus', 'subReward', 'usedLeave', 'totalLeave', '獎金/延續', 'finalLeave', 'notes'];
-          setLeaveHeaders(mappedHeaders); 
+          setLeaveHeaders(mappedHeaders);
           setLeaveData(res.leaveData);
           setManagerData(res.managerData); setBanquetData(res.banquetData); setTechData(res.techData);
         } catch (err) {
           setError("Error: " + err.message);
-        } finally { // ⚡【核心戰術：修復 finally 錯字】
+        } finally {
           setLoading(false);
         }
       };
@@ -401,11 +383,11 @@ const executeGasApi = async (action, passcode, params = {}) => {
           window.html2canvas(element, { scale: 2, useCORS: true, x: 0, y: 0, scrollX: 0, scrollY: 0 }).then(canvas => {
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
             const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('landscape', 'mm', 'a4'); 
+            const pdf = new jsPDF('landscape', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeight = pdf.internal.pageSize.getHeight();
             const canvasRatio = canvas.height / canvas.width; const pdfRatio = pdfHeight / pdfWidth;
             let finalWidth, finalHeight;
-            if (canvasRatio > pdfRatio) { finalHeight = pdfHeight; finalWidth = pdfHeight / canvasRatio; } 
+            if (canvasRatio > pdfRatio) { finalHeight = pdfHeight; finalWidth = pdfHeight / canvasRatio; }
             else { finalWidth = pdfWidth; finalHeight = pdfWidth * canvasRatio; }
             const x = (pdfWidth - finalWidth) / 2; const y = (pdfHeight - finalHeight) / 2;
             pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
@@ -417,15 +399,12 @@ const executeGasApi = async (action, passcode, params = {}) => {
       const handleQuickDeduct = async (rowIndex, currentPass) => {
         const previousState = JSON.parse(JSON.stringify(leaveData));
         const newData = [...leaveData];
-        let used = parseInt(newData[rowIndex][5], 10) || 0;    
-        let finalRem = parseInt(newData[rowIndex][8], 10) || 0; 
-        
+        let used = parseInt(newData[rowIndex][5], 10) || 0;
+        let finalRem = parseInt(newData[rowIndex][8], 10) || 0;
         if (finalRem <= 0) return alert(t('insufficientLeave'));
-
         newData[rowIndex][5] = used + 1;
-        newData[rowIndex][8] = finalRem - 1; 
+        newData[rowIndex][8] = finalRem - 1;
         setLeaveData(newData);
-
         try {
           await executeGasApi('quickDeductLeave', currentPass, { dataIndex: rowIndex });
         } catch(err) {
@@ -436,15 +415,12 @@ const executeGasApi = async (action, passcode, params = {}) => {
       const handleQuickUndo = async (rowIndex, currentPass) => {
         const previousState = JSON.parse(JSON.stringify(leaveData));
         const newData = [...leaveData];
-        let used = parseInt(newData[rowIndex][5], 10) || 0;    
-        let finalRem = parseInt(newData[rowIndex][8], 10) || 0; 
-        
+        let used = parseInt(newData[rowIndex][5], 10) || 0;
+        let finalRem = parseInt(newData[rowIndex][8], 10) || 0;
         if (used <= 0) return alert(t('restoreLimit'));
-
         newData[rowIndex][5] = used - 1;
-        newData[rowIndex][8] = finalRem + 1; 
+        newData[rowIndex][8] = finalRem + 1;
         setLeaveData(newData);
-
         try {
           await executeGasApi('quickUndoLeave', currentPass, { dataIndex: rowIndex });
         } catch(err) {
@@ -455,12 +431,10 @@ const executeGasApi = async (action, passcode, params = {}) => {
       const handleQuickReward = async (rowIndex, currentPass) => {
         const previousState = JSON.parse(JSON.stringify(leaveData));
         const newData = [...leaveData];
-        
-        newData[rowIndex][4] = (parseInt(newData[rowIndex][4], 10) || 0) + 1; 
-        newData[rowIndex][6] = (parseInt(newData[rowIndex][6], 10) || 0) + 1; 
-        newData[rowIndex][8] = (parseInt(newData[rowIndex][8], 10) || 0) + 1; 
+        newData[rowIndex][4] = (parseInt(newData[rowIndex][4], 10) || 0) + 1;
+        newData[rowIndex][6] = (parseInt(newData[rowIndex][6], 10) || 0) + 1;
+        newData[rowIndex][8] = (parseInt(newData[rowIndex][8], 10) || 0) + 1;
         setLeaveData(newData);
-
         try {
           await executeGasApi('quickRewardLeave', currentPass, { dataIndex: rowIndex });
         } catch(err) {
@@ -469,7 +443,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
       };
 
       const handleToggle = async (rowIndex, currentPass) => {
-        const newStatus = leaveData[rowIndex][7] === '獎金' ? '延續' : '獎金'; 
+        const newStatus = leaveData[rowIndex][7] === '獎金' ? '延續' : '獎金';
         const newData = [...leaveData]; newData[rowIndex][7] = newStatus;
         setLeaveData(newData);
         try {
@@ -478,15 +452,15 @@ const executeGasApi = async (action, passcode, params = {}) => {
       };
 
       const handleOpenLeaveModal = (index = null, rowData = null) => {
-        setEditIndex(index); 
-        setLeaveFormData(rowData ? [...rowData] : ['', '', '', '', '0', '0', '', '延續', '', '']); 
+        setEditIndex(index);
+        setLeaveFormData(rowData ? [...rowData] : ['', '', '', '', '0', '0', '', '延續', '', '']);
         setIsLeaveModalOpen(true);
       };
 
       const handleSaveLeave = async () => {
         if (!leaveFormData[0] || !leaveFormData[1]) return alert(t('fillRequired'));
-        let submitData = [...leaveFormData]; 
-        if (!submitData[7]) submitData[7] = '延續'; 
+        let submitData = [...leaveFormData];
+        if (!submitData[7]) submitData[7] = '延續';
         setIsLeaveModalOpen(false);
         try {
           await executeGasApi('saveEmployee', authPasscode, { dataIndex: editIndex, rowData: submitData });
@@ -495,7 +469,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
       };
 
       const handleDeleteLeave = async (index, currentPass) => {
-        if(confirm(t('delConfirm'))) { 
+        if(confirm(t('delConfirm'))) {
           try {
             await executeGasApi('deleteEmployee', currentPass, { dataIndex: index });
             fetchData();
@@ -503,8 +477,8 @@ const executeGasApi = async (action, passcode, params = {}) => {
         }
       };
 
-      const handleOpenManagerModal = (group, index = null, rowData = null) => { 
-        setEditIndex(index); setManagerFormData(rowData ? [...rowData].slice(0, 3) : [group, '', '']); setIsManagerModalOpen(true); 
+      const handleOpenManagerModal = (group, index = null, rowData = null) => {
+        setEditIndex(index); setManagerFormData(rowData ? [...rowData].slice(0, 3) : [group, '', '']); setIsManagerModalOpen(true);
       };
       const handleSaveManager = async () => {
         if (!managerFormData[1] || !managerFormData[2]) return alert(t('fillRequired'));
@@ -515,7 +489,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
         } catch(e) { alert(e.message); }
       };
       const handleDeleteManager = async (index, currentPass) => {
-        if(confirm(t('delConfirmManager'))) { 
+        if(confirm(t('delConfirmManager'))) {
           try {
             await executeGasApi('deleteManagerRecord', currentPass, { dataIndex: index });
             fetchData();
@@ -535,7 +509,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
         } catch(e) { alert(e.message); }
       };
       const handleDeleteBanquet = async (index, currentPass) => {
-        if(confirm(t('delConfirmBanquet'))) { 
+        if(confirm(t('delConfirmBanquet'))) {
           try {
             await executeGasApi('deleteBanquetRecord', currentPass, { dataIndex: index });
             fetchData();
@@ -555,7 +529,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
         } catch(e) { alert(e.message); }
       };
       const handleDeleteTech = async (index, currentPass) => {
-        if(confirm(t('delConfirmTech'))) { 
+        if(confirm(t('delConfirmTech'))) {
           try {
             await executeGasApi('deleteTechRecord', currentPass, { dataIndex: index });
             fetchData();
@@ -609,7 +583,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
               <button onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')} className="px-5 py-3 text-lg bg-slate-900 hover:bg-slate-800 text-yellow-400 font-bold rounded-lg flex items-center gap-2 border border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-transform hover:scale-105">
                 <Icon name="globe" className="w-5 h-5" /> {t('langBtn')}
               </button>
-              
               <button onClick={fetchData} disabled={loading} className="px-5 py-3 text-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold rounded-lg flex items-center gap-2 border border-slate-600 shadow-lg transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100">
                 <Icon name="refresh-cw" className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /> {t('sync')}
               </button>
@@ -639,11 +612,9 @@ const executeGasApi = async (action, passcode, params = {}) => {
                     <tr><td colSpan="12" className="p-12 text-center text-brand-500"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto no-print" /></td></tr>
                   ) : leaveData.map((row, rowIndex) => {
                     const used = parseInt(row[5], 10) || 0;
-                    const total = parseInt(row[6], 10) || 1; 
-                    const finalRem = parseInt(row[8], 10) || 0; 
-                    
+                    const total = parseInt(row[6], 10) || 1;
+                    const finalRem = parseInt(row[8], 10) || 0;
                     const percent = Math.max(0, Math.min(100, (finalRem / total) * 100));
-                    
                     const redThreshold = total / 3;
                     let barColor = "bg-emerald-500 shadow-[0_0_10px_#10b981]";
                     if (finalRem < redThreshold) barColor = "bg-red-500 shadow-[0_0_10px_#ef4444]";
@@ -652,16 +623,13 @@ const executeGasApi = async (action, passcode, params = {}) => {
                     return (
                       <tr key={rowIndex} className="hover:bg-slate-800 transition-colors">
                         <td className="px-4 py-4 text-center border border-slate-700 text-slate-500 font-bold print:text-black">{rowIndex + 1}</td>
-                        
                         <td className="px-5 py-4 whitespace-nowrap border border-slate-700 text-slate-300 font-bold">{row[0] || '-'}</td>
                         <td className="px-5 py-4 whitespace-nowrap border border-slate-700 text-slate-300 font-mono">{row[1] || '-'}</td>
                         <td className="px-5 py-4 text-center border border-slate-700 text-slate-400">{row[2] || '0'}</td>
                         <td className="px-5 py-4 text-center border border-slate-700 text-amber-400 font-bold">{row[3] || '0'}</td>
                         <td className="px-5 py-4 text-center border border-slate-700 text-emerald-400 font-bold">{row[4] || '0'}</td>
-
                         <td className="px-5 py-4 border border-slate-700 text-center text-slate-400 font-bold">{used}</td>
                         <td className="px-5 py-4 border border-slate-700 text-center text-slate-300 font-bold text-xl">{total}</td>
-
                         <td className="px-5 py-4 border border-slate-700 text-center print-highlight">
                           <div className="flex items-center gap-2 justify-center no-print">
                             <span className={`text-sm ${row[7] !== '獎金' ? 'text-brand-400 font-bold' : 'text-slate-500'}`}>{t('carry')}</span>
@@ -672,7 +640,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                           </div>
                           <span className="hidden print:inline-block print:text-black">{row[7] === '獎金' ? t('bonus') : t('carry')}</span>
                         </td>
-
                         <td className="px-5 py-4 border border-slate-700 min-w-[180px] bg-slate-800/40">
                           <div className="flex items-center gap-3 justify-between no-print">
                             <span className={`text-2xl font-black tracking-widest ${finalRem < redThreshold ? 'text-red-400 glitch-text' : 'text-brand-400'}`}>
@@ -684,9 +651,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
                           </div>
                           <span className="hidden print:inline-block print:text-black print:font-bold">{finalRem}</span>
                         </td>
-
                         <td className="px-5 py-4 border border-slate-700 text-slate-300">{row[9] || '-'}</td>
-
                         <td className="px-5 py-4 border border-slate-700 text-center whitespace-nowrap action-col">
                           <div className="flex justify-center items-center gap-1">
                             <button onClick={() => requireAuth((pass) => handleQuickReward(rowIndex, pass))} title="增加該員代班特休" className="px-2 py-1 bg-emerald-950/50 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-400 rounded-md font-bold text-sm transition-colors group flex items-center gap-1 shadow-md">
@@ -698,9 +663,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
                             <button onClick={() => requireAuth((pass) => handleQuickDeduct(rowIndex, pass))} title="消耗一天特休" className="px-2 py-1 bg-red-950/50 hover:bg-red-900 border border-red-700/60 text-red-400 rounded-md font-bold text-sm transition-colors group flex items-center gap-1 shadow-md">
                               <Icon name="minus-circle" className="w-4 h-4 group-hover:scale-110 transition-transform" /> {t('quickDeduct')}
                             </button>
-                            
                             <div className="w-px h-6 bg-slate-700 mx-1"></div>
-                            
                             <button onClick={() => requireAuth(() => handleOpenLeaveModal(rowIndex, row))} className="text-slate-400 hover:text-brand-400 mx-1"><Icon name="edit" className="w-6 h-6" /></button>
                             <button onClick={() => requireAuth((pass) => handleDeleteLeave(rowIndex, pass))} className="text-slate-400 hover:text-red-400 mx-1"><Icon name="trash-2" className="w-6 h-6" /></button>
                           </div>
@@ -718,21 +681,13 @@ const executeGasApi = async (action, passcode, params = {}) => {
               <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3 print:text-black print:text-xl">
                 <Icon name="database" className="w-7 h-7 text-emerald-400 no-print" /> {t('orgTitle')}
               </h2>
-              
               <div className="flex flex-wrap items-center gap-2 bg-slate-900 p-1.5 rounded-lg border border-slate-700 shadow-inner no-print">
-                <button 
-                  onClick={() => setSelectedYear('ALL')} 
-                  className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === 'ALL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
-                >
+                <button onClick={() => setSelectedYear('ALL')} className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === 'ALL' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                   <Icon name="history" className="w-4 h-4 mr-2 inline" />{t('history')}
                 </button>
                 <div className="w-px h-6 bg-slate-700 mx-1"></div>
                 {availableYears.map(year => (
-                  <button 
-                    key={year} 
-                    onClick={() => setSelectedYear(year)} 
-                    className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === year ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
-                  >
+                  <button key={year} onClick={() => setSelectedYear(year)} className={`px-4 py-2 rounded-md text-lg font-bold transition-all ${selectedYear === year ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
                     {year} {t('yearText')}
                   </button>
                 ))}
@@ -740,7 +695,7 @@ const executeGasApi = async (action, passcode, params = {}) => {
             </div>
 
             {loading ? (
-               <div className="p-12 text-center text-emerald-500 no-print"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto" /></div>
+              <div className="p-12 text-center text-emerald-500 no-print"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto" /></div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
                 <EventCard t={t} title="aGroup" icon="users" textColor="text-brand-400" headers={['name', 'term']} dataList={aGroupManagers} displayStart={1} onOpenModal={() => requireAuth(() => handleOpenManagerModal('A組'))} onEdit={(idx, row) => requireAuth(() => handleOpenManagerModal('A組', idx, row))} onDelete={(idx, name) => requireAuth((pass) => handleDeleteManager(idx, pass))} />
@@ -760,17 +715,16 @@ const executeGasApi = async (action, passcode, params = {}) => {
           <div className="no-print">
             {showAuthModal && (
               <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-                <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center relative overflow-hidden transform transition-all">
+                <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center relative overflow-hidden">
                   <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300"><Icon name="x" className="w-5 h-5" /></button>
                   <Icon name="lock" className="w-12 h-12 text-brand-500 mx-auto mb-4" />
                   <h2 className="text-xl font-bold text-slate-100 mb-2">{t('auth')}</h2>
                   <p className="text-slate-400 text-lg mb-6">{t('authDesc')}</p>
-                  
                   <form onSubmit={handleLogin} className="space-y-4">
                     <input type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} placeholder="••••••••" disabled={isVerifying} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-center text-slate-200 tracking-[0.3em] focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50 text-xl" autoFocus />
                     {authError && <p className="text-red-400 text-lg animate-pulse">{authError}</p>}
                     <button type="submit" disabled={isVerifying} className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-lg">
-                      {isVerifying ? <Icon name="loader-2" className="w-5 h-5 animate-spin" /> : <Icon name="unlock" className="w-5 h-5" />} 
+                      {isVerifying ? <Icon name="loader-2" className="w-5 h-5 animate-spin" /> : <Icon name="unlock" className="w-5 h-5" />}
                       {isVerifying ? t('verify') : t('confirmUnlock')}
                     </button>
                   </form>
@@ -868,13 +822,13 @@ const executeGasApi = async (action, passcode, params = {}) => {
                   </div>
                   <div className="p-6 grid grid-cols-2 gap-6">
                     {leaveHeaders.map((header, index) => {
-                      if (index === 2 || index === 3 || index === 6 || index === 7 || index === 8) return null; 
+                      if (index === 2 || index === 3 || index === 6 || index === 7 || index === 8) return null;
                       return (
                         <div key={index} className="flex flex-col gap-2 col-span-2">
                           <label className="text-slate-400 text-lg font-bold">{t(header)}</label>
-                          <input type={(index === 4 || index === 5) ? "number" : "text"} value={leaveFormData[index] || ''} 
-                            onChange={(e) => { const newData = [...leaveFormData]; newData[index] = e.target.value; setLeaveFormData(newData); }} 
-                            className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-brand-500 text-lg" 
+                          <input type={(index === 4 || index === 5) ? "number" : "text"} value={leaveFormData[index] || ''}
+                            onChange={(e) => { const newData = [...leaveFormData]; newData[index] = e.target.value; setLeaveFormData(newData); }}
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 focus:outline-none focus:border-brand-500 text-lg"
                             placeholder={index === 1 ? "例：0112/04/01" : ""}
                           />
                         </div>
@@ -898,7 +852,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                     </h2>
                     <button onClick={() => setIsRuleModalOpen(false)} className="text-slate-400 hover:text-white transition-colors"><Icon name="x" className="w-6 h-6" /></button>
                   </div>
-                  
                   <div className="p-8 space-y-6 text-lg text-slate-300 leading-relaxed overflow-y-auto">
                     <div className="flex items-start gap-4 bg-brand-900/10 p-5 rounded-lg border border-brand-900/30">
                       <Icon name="file-text" className="w-6 h-6 text-brand-400 mt-1 shrink-0" />
@@ -907,7 +860,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                         <p className="text-slate-300 mb-3 text-lg">{t('rule1Desc')}</p>
                       </div>
                     </div>
-
                     <div className="flex items-start gap-4 bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
                       <Icon name="check-circle" className="w-6 h-6 text-emerald-400 mt-1 shrink-0" />
                       <div>
@@ -915,7 +867,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                         <p className="text-lg">{t('rule2Desc')}<strong className="text-emerald-400">{t('rule2High')}</strong>。</p>
                       </div>
                     </div>
-
                     <div className="flex items-start gap-4 bg-red-900/10 p-4 rounded-lg border border-red-900/30">
                       <Icon name="alert-triangle" className="w-6 h-6 text-red-400 mt-1 shrink-0" />
                       <div>
@@ -923,7 +874,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                         <p className="text-lg">{t('rule3Desc')}<strong className="text-red-400 border-b border-red-400/50 pb-0.5">{t('rule3High')}</strong>。</p>
                       </div>
                     </div>
-
                     {isUnlocked && (
                       <>
                         <div className="flex items-start gap-4 bg-purple-900/10 p-4 rounded-lg border border-purple-900/30">
@@ -933,7 +883,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                             <p className="text-lg">{t('rule4Desc')}</p>
                           </div>
                         </div>
-
                         <div className="flex items-start gap-4 bg-cyan-900/10 p-4 rounded-lg border border-cyan-900/30">
                           <Icon name="coffee" className="w-6 h-6 text-cyan-400 mt-1 shrink-0" />
                           <div>
@@ -944,7 +893,6 @@ const executeGasApi = async (action, passcode, params = {}) => {
                       </>
                     )}
                   </div>
-                  
                   <div className="p-4 border-t border-slate-800 flex justify-center bg-slate-900/50 shrink-0">
                     <button onClick={() => setIsRuleModalOpen(false)} className="px-8 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold transition-colors text-lg shadow-lg">{t('iUnderstand')}</button>
                   </div>
