@@ -228,7 +228,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQe
 const executeGasApi = async (action, passcode, params = {}) => {
   const response = await fetch(API_URL, {
     method: 'POST',
-    mode: 'no-cors', // 🟢 關鍵：告訴瀏覽器「不要攔截我」，直接送出
+    
     body: JSON.stringify({ action, passcode, params })
   });
   // 因為設定了 no-cors，這裡會回傳空的 response，我們直接回傳成功
