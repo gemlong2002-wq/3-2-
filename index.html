@@ -226,13 +226,20 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbwyuuggJEL5EEVprtWLstQewxnDYeyAzsamrV0mRSqxft-ewxXHZ1wG3nGB2GXu34dGFA/exec";
 
 const executeGasApi = async (action, passcode, params = {}) => {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    
-    body: JSON.stringify({ action, passcode, params })
-  });
-  // 因為設定了 no-cors，這裡會回傳空的 response，我們直接回傳成功
-  return { status: "success" }; 
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, passcode, params }),
+      redirect: "follow"
+    });
+    const result = await response.json();
+    if (result.status === 'error') throw new Error(result.message);
+    return result;
+  } catch (err) {
+    console.error("API Call Failed:", err);
+    throw err;
+  }
 };
         const executeGasApi = async (action, passcode, params = {}) => {
       try {
