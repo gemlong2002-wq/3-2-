@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOS v11.6 TERMINAL</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0a0a0a; color: #e5e5e5; font-family: 'Courier New', Courier, monospace; }
+        .cyber-border { border: 4px solid #333; box-shadow: 6px 6px 0px #1a1a1a; transition: all 0.1s; }
+        .cyber-border:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0px #333; }
+        .glitch-text { animation: glitch 1.5s linear infinite; }
+        @keyframes glitch { 2%, 64% { transform: translate(2px,0) skew(0deg); } 4%, 60% { transform: translate(-2px,0) skew(0deg); } 62% { transform: translate(0,0) skew(5deg); } }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="p-4 md:p-8 selection:bg-red-500 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ==========================================
+        // CONFIGURATION: 填入你的 GAS 網頁應用程式 URL
+        // ==========================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbxEEGI9X2nF9nZkjfV0vGx-8zzfZI7TkjqtjzIbnhPBxeHO_ZPoOnvqYSEDwmLGwADo/exec";
+
+        function App() {
+            const [auth, setAuth] = React.useState(false);
+            const [passcode, setPasscode] = React.useState('');
+            const [loading, setLoading] = React.useState(true);
+            const [data, setData] = React.useState(null);
+            const [editMode, setEditMode] = React.useState(false);
+            const [localP1, setLocalP1] = React.useState(0);
+            const [localCash, setLocalCash] = React.useState(0);
+
+            React.useEffect(() => {
+                fetchData();
+            }, []);
+
+            const fetchData = async () => {
+                try {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'getDashboardData' }),
+                        redirect: 'follow'
+                    });
+                    const result = await res.json();
+                    setData(result);
+                    setLocalP1(result.p1Amount);
+                    setLocalCash(result.cashPool);
+                    setLoading(false);
+                } catch (e) {
+                    console.error("SYS ERR: ", e);
+                }
+            };
+
+            const handleLogin = async () => {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'checkAuth', passcode }),
+                    redirect: 'follow'
+                });
+                const result = await res.json();
+                if (result.valid) setAuth(true);
+                else alert("ACCESS DENIED");
+            };
+
+            const handleUpdate = async () => {
+                // 0ms Optimistic UI Update
+                const prevData = { ...data };
+                setData(prev => ({ ...prev, p1Amount: Number(localP1), cashPool: Number(localCash) }));
+                setEditMode(false);
+
+                try {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'updatePool', passcode, p1Amount: Number(localP1), cashPool: Number(localCash) }),
+                        redirect: 'follow'
+                    });
+                    const result = await res.json();
+                    if(result.error) throw new Error(result.error);
+                } catch (e) {
+                    alert("SYNC FAILED. ROLLBACK INITIATED.");
+                    setData(prevData); // Rollback
+                }
+            };
+
+            if (loading) return <h1 className="text-5xl glitch-text text-red-500 mt-20 text-center">INITIALIZING FOS v11.6...</h1>;
+
+            return (
+                <div className="max-w-7xl mx-auto space-y-8 pb-20">
+                    <header className="border-b-4 border-gray-800 pb-4 flex justify-between items-end flex-wrap gap-4">
+                        <div>
+                            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white">FOS TERMINAL</h1>
+                            <p className="text-xl md:text-2xl text-gray-400 font-bold tracking-widest mt-2">v11.6 TACTICAL ENGINE</p>
+                        </div>
+                        <div className="bg-white text-black font-black py-2 px-4 text-xl">
+                            AUTHORIZED BY CHANGSHENG LIU
+                        </div>
+                    </header>
+
+                    {/* INDEX TRACKER */}
+                    <div className="cyber-border bg-black p-6 md:p-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-500">大盤加權指數 / ^TWII</h2>
+                            <div className="text-5xl md:text-8xl font-black mt-2">
+                                {data.twii.current.toFixed(2)}
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <h2 className="text-xl font-bold text-gray-500">變動矩陣 / DELTA</h2>
+                            <div className={`text-4xl md:text-6xl font-black mt-2 ${data.twii.changePoints >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                {data.twii.changePoints > 0 ? '+' : ''}{data.twii.changePoints.toFixed(2)} 
+                                <span className="text-3xl"> ({data.twii.changePercent.toFixed(2)}%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* DECISION MATRIX */}
+                    <div className="cyber-border bg-[#111] p-6 md:p-10">
+                        <h2 className="text-2xl font-bold text-gray-500 mb-6">決策矩陣 / DECISION MATRIX</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <p className="text-xl text-gray-400 mb-2">判定狀態 / SYSTEM STATUS</p>
+                                <p className={`text-3xl md:text-5xl font-black ${data.decision.color}`}>{data.decision.state}</p>
+                            </div>
+                            <div className="border-l-4 border-gray-800 pl-8">
+                                <p className="text-xl text-gray-400 mb-2">執行指令 / ACTION COMMAND</p>
+                                <p className="text-4xl md:text-6xl font-black text-white">
+                                    {data.decision.action} <span className={data.decision.action === 'BUY' ? 'text-red-500' : 'text-green-500'}>
+                                        ${data.decision.amount.toLocaleString()}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* POOL LEVEL */}
+                    {!auth ? (
+                        <div className="cyber-border bg-gray-900 p-10 text-center space-y-6">
+                            <h2 className="text-3xl font-black text-red-500">SYSTEM LOCKED</h2>
+                            <input type="password" value={passcode} onChange={e => setPasscode(e.target.value)} placeholder="ENTER PASSCODE" className="bg-black text-white text-2xl p-4 w-full md:w-1/2 border-2 border-gray-700 text-center focus:border-red-500 outline-none" />
+                            <button onClick={handleLogin} className="block mx-auto bg-red-600 hover:bg-red-500 text-white font-black text-2xl py-4 px-12 transition-colors">UNLOCK POOL PROTOCOL</button>
+                        </div>
+                    ) : (
+                        <div className="cyber-border bg-[#0a0a0a] p-6 md:p-10 border-red-900">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-bold text-red-500">資金池水位 / POOL LEVEL</h2>
+                                {!editMode ? (
+                                    <button onClick={() => setEditMode(true)} className="bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 px-8 text-xl">EDIT / 修改</button>
+                                ) : (
+                                    <button onClick={handleUpdate} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 text-xl">SAVE / 寫入</button>
+                                )}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div>
+                                    <label className="block text-xl text-gray-400 mb-2">P1 總市值 / P1 AMOUNT</label>
+                                    {!editMode ? (
+                                        <div className="text-5xl md:text-7xl font-black">${data.p1Amount.toLocaleString()}</div>
+                                    ) : (
+                                        <input type="number" value={localP1} onChange={e => setLocalP1(e.target.value)} className="bg-black text-white text-5xl font-black w-full p-4 border-2 border-gray-700 outline-none" />
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-xl text-gray-400 mb-2">備用現金池 / CASH POOL</label>
+                                    {!editMode ? (
+                                        <div className="text-5xl md:text-7xl font-black text-green-500">${data.cashPool.toLocaleString()}</div>
+                                    ) : (
+                                        <input type="number" value={localCash} onChange={e => setLocalCash(e.target.value)} className="bg-black text-green-500 text-5xl font-black w-full p-4 border-2 border-gray-700 outline-none" />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
