@@ -612,12 +612,14 @@
                     <tr><td colSpan="12" className="p-12 text-center text-brand-500"><Icon name="loader-2" className="w-8 h-8 animate-spin mx-auto no-print" /></td></tr>
                   ) : leaveData.map((row, rowIndex) => {
                     const used = parseInt(row[5], 10) || 0;
-                    const total = parseInt(row[6], 10) || 1;
+                    const totalRaw = parseInt(row[6], 10) || 0;   // 顯示用，忠實呈現真實資料
+                    const total = totalRaw || 1;                   // 僅用於進度條除法，避免除以零
                     const finalRem = parseInt(row[8], 10) || 0;
                     const percent = Math.max(0, Math.min(100, (finalRem / total) * 100));
                     const redThreshold = total / 3;
                     let barColor = "bg-emerald-500 shadow-[0_0_10px_#10b981]";
-                    if (finalRem < redThreshold) barColor = "bg-red-500 shadow-[0_0_10px_#ef4444]";
+                    if (totalRaw === 0) barColor = "bg-slate-500";
+                    else if (finalRem < redThreshold) barColor = "bg-red-500 shadow-[0_0_10px_#ef4444]";
                     else if (finalRem <= total * 0.6) barColor = "bg-amber-500 shadow-[0_0_10px_#f59e0b]";
 
                     return (
@@ -629,7 +631,7 @@
                         <td className="px-5 py-4 text-center border border-slate-700 text-amber-400 font-bold">{row[3] || '0'}</td>
                         <td className="px-5 py-4 text-center border border-slate-700 text-emerald-400 font-bold">{row[4] || '0'}</td>
                         <td className="px-5 py-4 border border-slate-700 text-center text-slate-400 font-bold">{used}</td>
-                        <td className="px-5 py-4 border border-slate-700 text-center text-slate-300 font-bold text-xl">{total}</td>
+                        <td className="px-5 py-4 border border-slate-700 text-center text-slate-300 font-bold text-xl">{totalRaw}</td>
                         <td className="px-5 py-4 border border-slate-700 text-center print-highlight">
                           <div className="flex items-center gap-2 justify-center no-print">
                             <span className={`text-sm ${row[7] !== '獎金' ? 'text-brand-400 font-bold' : 'text-slate-500'}`}>{t('carry')}</span>
@@ -642,7 +644,7 @@
                         </td>
                         <td className="px-5 py-4 border border-slate-700 min-w-[180px] bg-slate-800/40">
                           <div className="flex items-center gap-3 justify-between no-print">
-                            <span className={`text-2xl font-black tracking-widest ${finalRem < redThreshold ? 'text-red-400 glitch-text' : 'text-brand-400'}`}>
+                            <span className={`text-2xl font-black tracking-widest ${(totalRaw !== 0 && finalRem < redThreshold) ? 'text-red-400 glitch-text' : 'text-brand-400'}`}>
                               {finalRem}
                             </span>
                             <div className="w-16 lg:w-24 bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
